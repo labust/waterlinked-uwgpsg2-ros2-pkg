@@ -10,7 +10,10 @@ from rclpy.node import Node
 #from sensor_msgs.msg import Image
 #from sensor_msgs.msg import Joy
 #from geometry_msgs.msg import Twist
-#from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose
+from geographic_msgs.msg import GeoPoint
+
+
 
 import math
 import sys
@@ -20,10 +23,34 @@ import inputs
 import requests
 import argparse
 import json
-#from examples.getposition import *# get_data, get_acoustic_position, get_global_position
+
+#sys.path.append('~/waterlinked-uwgpsg2-ros2-pkg/uwgpsg2_ros2_interface/uwgpsg2_ros2_interface/examples')
+#from getposition import get_data, get_acoustic_position, get_global_position
 
 class WaterLinedUWGPSG2Interface(Node):
 
+# WaterLinked API methods
+    def get_data(self, url):  
+        try:
+            r = requests.get(url)
+        except requests.exceptions.RequestException as exc:
+            print("Exception occured {}".format(exc))
+            return None
+            
+        if r.status_code != requests.codes.ok:
+            print("Got error {}: {}".format(r.status_code, r.text))
+            return None
+    
+        return r.json()
+
+    def get_acoustic_position(self, base_url):
+        return self.get_data("{}/api/v1/position/acoustic/filtered".format(base_url))
+
+    def get_global_position(self, base_url):
+        return self.get_data("{}/api/v1/position/global".format(base_url))
+
+
+# ROS-related methods
     def declare_node_parameters(self):
         #self.declare_parameter('use_gamepad', False)
         #self.declare_parameter('camera_bitrate_min', 1000000)
@@ -58,11 +85,58 @@ class WaterLinedUWGPSG2Interface(Node):
         # self.get_ros_params() # Blueye params values should be changed
         # through topic publishing and not ROS2 node param change
         self.set_ros_params()
+        self.get_waterlinked_measuremets()
         self.publish_all_waterlinked_variables()
+    
+    def get_waterlinked_measuremets(self):
+        parser = argparse.ArgumentParser(description=__doc__)
+        parser.add_argument('-u', '--url', help='Base URL to use', type=str, default='http://demo.waterlinked.com')
+        args = parser.parse_args()
+        
+        base_url = args.url
+        #print("Using base_url: %s" % base_url)
+
+        data = self.get_acoustic_position(base_url)
+        if data:
+            #print(data)
+            #print("Current acoustic position {},{},{}".format(data["x"], data["y"], data["z"]))
+            self.locator_wrt_base_relative_x = data["x"]
+            self.locator_wrt_base_relative_y = data["y"]
+            self.locator_wrt_base_relative_z = data["z"]
+
+        pos = self.get_global_position(base_url)
+        if pos:
+            #print(pos)
+            #print("Current global position lat:{} lon:{}".format(pos["lat"], pos["lon"]))
+            self.locator_global_lat = pos["lat"]
+            self.locator_global_lon = pos["lon"]
             
-    def publish_all_waterlinked_variables(self):
-        # Publishing ROV params and variables to ROS topics
-       """ if not self.IS_SIMULATION:
+    
+    def publish_all_waterlinked_variables(self):        
+        msg = Pose()
+        msg.position.x = float(self.locator_wrt_base_relative_x)
+        msg.position.y = float(self.locator_wrt_base_relative_y)
+        # conversion of depth from [mm]to [m]
+        msg.position.z = float(self.locator_wrt_base_relative_z)
+        # Make sure the quaternion is valid and normalized
+        # conversion of roll, pith and yaw from [degrees]to [rad]
+        roll = 0.0
+        pitch = 0.0
+        yaw = 0.0
+        x, y, z, w = self.euler_to_quaternion(roll, pitch, yaw)
+        msg.orientation.x = float(x)
+        msg.orientation.y = float(y)
+        msg.orientation.z = float(z)
+        msg.orientation.w = float(w)
+        self.pose_pub.publish(msg)
+        
+        msg = GeoPoint()
+        msg.latitude = float(self.locator_global_lat)
+        msg.longitude = float(self.locator_global_lon)
+        msg.altitude = 0.0; # or -self.locator_wrt_base_relative_z 
+        self.gps_pub.publish(msg)
+    
+        """ if not self.IS_SIMULATION:
             # Publishing depth and orientation into a Pose msg
             msg = Pose()
             msg.position.x = 0.0
@@ -134,7 +208,8 @@ class WaterLinedUWGPSG2Interface(Node):
         
     def initialize_publishers(self):
         # Initialize ROS publishers of ROV variables - ROV get topics
-        #self.pose_pub = self.create_publisher(Pose, "pose", 10)
+        self.pose_pub = self.create_publisher(Pose, "waterlinked_locator_position_relative", 10)
+        self.gps_pub = self.create_publisher(GeoPoint, "waterlinked_locator_position_global", 10)
         print("Initializing ROS publishers")
         
     def initialize_connection(self):

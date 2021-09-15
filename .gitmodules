@@ -1,0 +1,3 @@
+[submodule "uwgpsg2_ros2_interface/uwgpsg2_ros2_interface/examples"]
+	path = uwgpsg2_ros2_interface/uwgpsg2_ros2_interface/examples
+	url = https://github.com/waterlinked/examples.git
