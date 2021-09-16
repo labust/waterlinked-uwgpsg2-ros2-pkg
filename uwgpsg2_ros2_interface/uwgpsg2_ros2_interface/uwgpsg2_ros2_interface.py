@@ -26,6 +26,7 @@ import json
 
 #sys.path.append('~/waterlinked-uwgpsg2-ros2-pkg/uwgpsg2_ros2_interface/uwgpsg2_ros2_interface/examples')
 #from getposition import get_data, get_acoustic_position, get_global_position
+#from . import get_data, get_acoustic_position, get_global_position
 
 class WaterLinedUWGPSG2Interface(Node):
 
@@ -49,7 +50,6 @@ class WaterLinedUWGPSG2Interface(Node):
     def get_global_position(self, base_url):
         return self.get_data("{}/api/v1/position/global".format(base_url))
 
-
 # ROS-related methods
     def declare_node_parameters(self):
         #self.declare_parameter('use_gamepad', False)
@@ -58,7 +58,8 @@ class WaterLinedUWGPSG2Interface(Node):
         #self.declare_parameter('velocity_force_min', -1.0)
         print("Declaring ROS parameters")
         # ROS params
-        self.declare_parameter('rate', 10.0)
+        self.declare_parameter('ros_rate', 10.0)
+        self.declare_parameter('waterlinked_url', '')
        
     def get_ros_params(self):
         # Setting ROS parameters
@@ -70,7 +71,11 @@ class WaterLinedUWGPSG2Interface(Node):
         #    'camera_framerate_values').get_parameter_value().integer_array_value
         print("Getting ROS parameters.")
         self.RATE = self.get_parameter(
-            'rate').get_parameter_value().double_value  
+            'ros_rate').get_parameter_value().double_value  
+        self.WATERLINKED_URL = self.get_parameter(
+            'waterlinked_url').get_parameter_value().string_value  
+        
+        print(self.WATERLINKED_URL)
         
     def set_ros_params(self):
         return
@@ -89,52 +94,42 @@ class WaterLinedUWGPSG2Interface(Node):
         self.publish_all_waterlinked_variables()
     
     def get_waterlinked_measuremets(self):
-        parser = argparse.ArgumentParser(description=__doc__)
-        parser.add_argument('-u', '--url', help='Base URL to use', type=str, default='http://demo.waterlinked.com')
-        args = parser.parse_args()
-        
-        base_url = args.url
-        #print("Using base_url: %s" % base_url)
-
-        data = self.get_acoustic_position(base_url)
+        data = self.get_acoustic_position(self.WATERLINKED_URL)
         if data:
-            #print(data)
-            #print("Current acoustic position {},{},{}".format(data["x"], data["y"], data["z"]))
             self.locator_wrt_base_relative_x = data["x"]
             self.locator_wrt_base_relative_y = data["y"]
             self.locator_wrt_base_relative_z = data["z"]
 
-        pos = self.get_global_position(base_url)
+        pos = self.get_global_position(self.WATERLINKED_URL)
         if pos:
-            #print(pos)
-            #print("Current global position lat:{} lon:{}".format(pos["lat"], pos["lon"]))
             self.locator_global_lat = pos["lat"]
             self.locator_global_lon = pos["lon"]
             
-    
     def publish_all_waterlinked_variables(self):        
-        msg = Pose()
-        msg.position.x = float(self.locator_wrt_base_relative_x)
-        msg.position.y = float(self.locator_wrt_base_relative_y)
-        # conversion of depth from [mm]to [m]
-        msg.position.z = float(self.locator_wrt_base_relative_z)
-        # Make sure the quaternion is valid and normalized
-        # conversion of roll, pith and yaw from [degrees]to [rad]
-        roll = 0.0
-        pitch = 0.0
-        yaw = 0.0
-        x, y, z, w = self.euler_to_quaternion(roll, pitch, yaw)
-        msg.orientation.x = float(x)
-        msg.orientation.y = float(y)
-        msg.orientation.z = float(z)
-        msg.orientation.w = float(w)
-        self.pose_pub.publish(msg)
+        if hasattr(self, 'locator_wrt_base_relative_x'):
+            msg = Pose()
+            msg.position.x = float(self.locator_wrt_base_relative_x)
+            msg.position.y = float(self.locator_wrt_base_relative_y)
+            # conversion of depth from [mm]to [m]
+            msg.position.z = float(self.locator_wrt_base_relative_z)
+            # Make sure the quaternion is valid and normalized
+            # conversion of roll, pith and yaw from [degrees]to [rad]
+            roll = 0.0
+            pitch = 0.0
+            yaw = 0.0
+            x, y, z, w = self.euler_to_quaternion(roll, pitch, yaw)
+            msg.orientation.x = float(x)
+            msg.orientation.y = float(y)
+            msg.orientation.z = float(z)
+            msg.orientation.w = float(w)
+            self.pose_pub.publish(msg)
         
-        msg = GeoPoint()
-        msg.latitude = float(self.locator_global_lat)
-        msg.longitude = float(self.locator_global_lon)
-        msg.altitude = 0.0; # or -self.locator_wrt_base_relative_z 
-        self.gps_pub.publish(msg)
+        if hasattr(self, 'locator_global_lat'):
+            msg = GeoPoint()
+            msg.latitude = float(self.locator_global_lat)
+            msg.longitude = float(self.locator_global_lon)
+            msg.altitude = 0.0; # or -self.locator_wrt_base_relative_z 
+            self.gps_pub.publish(msg)
     
         """ if not self.IS_SIMULATION:
             # Publishing depth and orientation into a Pose msg
@@ -201,30 +196,21 @@ class WaterLinedUWGPSG2Interface(Node):
         return x, y, z, w
 
     def initialize_subscribers(self):
-        # Initialize ROS subscribers to ROV variables' reference - ROV set topics
-        # self.create_subscription(
-        #    Twist, "thruster_force_norm_ref", self.thruster_force_norm_ref_callback, 10)
         print("Initializing ROS subscribers")
         
     def initialize_publishers(self):
-        # Initialize ROS publishers of ROV variables - ROV get topics
+        print("Initializing ROS publishers")
         self.pose_pub = self.create_publisher(Pose, "waterlinked_locator_position_relative", 10)
         self.gps_pub = self.create_publisher(GeoPoint, "waterlinked_locator_position_global", 10)
-        print("Initializing ROS publishers")
-        
-    def initialize_connection(self):
-        print("Initializing connection")
-        
+                
     def __init__(self):
         print("Initializing WaterLinedUWGPSG2Interface class instance.")
-        super().__init__('waterlinked_interface')
+        super().__init__('uwgpsg2_interface')
         self.declare_node_parameters()
         self.get_ros_params()
         self.initialize_timer()
         self.initialize_subscribers()
-        self.initialize_publishers()
-        self.initialize_connection()
-        
+        self.initialize_publishers()       
 
 def main(args=None):
     print("Started")

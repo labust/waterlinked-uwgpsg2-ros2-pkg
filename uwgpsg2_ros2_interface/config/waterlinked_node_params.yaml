@@ -1,0 +1,5 @@
+catamaran:
+  waterlinked_localization_node:
+    ros__parameters:
+      ros_rate: 10.0
+      waterlinked_url: 'http://demo.waterlinked.com'
