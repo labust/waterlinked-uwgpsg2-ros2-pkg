@@ -13,12 +13,15 @@ from rclpy.node import Node
 from geometry_msgs.msg import Pose
 from geographic_msgs.msg import GeoPoint
 
+from sensor_msgs.msg import NavSatFix
+from sensor_msgs.msg import Imu
 
+from geometry_msgs.msg import Vector3Stamped  
+from geographic_msgs.msg import GeoPointStamped
 
 import math
 import sys
 import inputs
-
 
 import requests
 import argparse
@@ -60,6 +63,17 @@ class WaterLinedUWGPSG2Interface(Node):
         # ROS params
         self.declare_parameter('ros_rate', 10.0)
         self.declare_parameter('waterlinked_url', '')
+        self.declare_parameter('use_external_gps_fixed', False)
+        self.declare_parameter('external_gps_fixed_lat', 0.0)
+        self.declare_parameter('external_gps_fixed_lon', 0.0)       
+        self.declare_parameter('use_external_gps_asv_measurements', True)
+        self.declare_parameter('external_gps_asv_measurements_topic', '/usv/gps')
+        self.declare_parameter('external_ned_asv_measurements_topic', '/usv/gps_ned')
+        self.declare_parameter('external_map_origin_asv_measurements_topic', '/usv/map_origin')
+        self.declare_parameter('use_external_heading_fixed', False)
+        self.declare_parameter('external_heading_fixed_value', 0.0)
+        self.declare_parameter('use_external_heading_asv_measurements', True)
+        self.declare_parameter('external_imu_asv_measurements_topic', '/usv/imu/imu')
        
     def get_ros_params(self):
         # Setting ROS parameters
@@ -73,7 +87,29 @@ class WaterLinedUWGPSG2Interface(Node):
         self.RATE = self.get_parameter(
             'ros_rate').get_parameter_value().double_value  
         self.WATERLINKED_URL = self.get_parameter(
-            'waterlinked_url').get_parameter_value().string_value  
+            'waterlinked_url').get_parameter_value().string_value          
+        self.USE_EXTERNAL_GPS_FIXED = self.get_parameter(
+            'use_external_gps_fixed').get_parameter_value().bool_value 
+        self.EXTERNAL_GPS_FIXED_LAT = self.get_parameter(
+            'external_gps_fixed_lat').get_parameter_value().double_value    
+        self.EXTERNAL_GPS_FIXED_LON = self.get_parameter(
+            'external_gps_fixed_lon').get_parameter_value().double_value      
+        self.USE_EXTERNAL_GPS_MEASUREMENTS = self.get_parameter(
+            'use_external_gps_asv_measurements').get_parameter_value().bool_value 
+        self.EXTERNAL_GPS_MEASUREMENTS_TOPIC = self.get_parameter(
+            'external_gps_asv_measurements_topic').get_parameter_value().string_value 
+        self.EXTERNAL_NED_MEASUREMENTS_TOPIC = self.get_parameter(
+            'external_ned_asv_measurements_topic').get_parameter_value().string_value 
+        self.EXTERNAL_MAP_ORIGIN_MEASUREMENTS_TOPIC = self.get_parameter(
+            'external_map_origin_asv_measurements_topic').get_parameter_value().string_value        
+        self.USE_EXTERNAL_HEADING_FIXED = self.get_parameter(
+            'use_external_heading_fixed').get_parameter_value().bool_value 
+        self.EXTERNAL_HEADING_FIXED_VALUE = self.get_parameter(
+            'external_heading_fixed_value').get_parameter_value().double_value         
+        self.USE_EXTERNAL_HEADING_MEASUREMENTS = self.get_parameter(
+            'use_external_heading_asv_measurements').get_parameter_value().bool_value 
+        self.EXTERNAL_IMU_MEASUREMENTS_TOPIC = self.get_parameter(
+            'external_imu_asv_measurements_topic').get_parameter_value().string_value     
         
         print(self.WATERLINKED_URL)
         
@@ -194,9 +230,40 @@ class WaterLinedUWGPSG2Interface(Node):
         z = cr * cp * sy - sr * sp * cy
 
         return x, y, z, w
+        
+    def external_gps_measurements_callback(self, msg):
+        return 0
+    
+    def external_ned_measurements_callback(self, msg):
+        return 0
+    
+    def external_map_origin_measurements_callback(self, msg):
+        return 0
+    
+    def external_imu_measurements_callback(self, msg):
+        return 0
+
+
 
     def initialize_subscribers(self):
         print("Initializing ROS subscribers")
+        if (self.USE_EXTERNAL_GPS_FIXED ^ self.USE_EXTERNAL_GPS_MEASUREMENTS):
+            if self.USE_EXTERNAL_GPS_MEASUREMENTS:
+                self.create_subscription(
+            NavSatFix, self.EXTERNAL_GPS_MEASUREMENTS_TOPIC, self.external_gps_measurements_callback, 10)
+                self.create_subscription(
+            Vector3Stamped, self.EXTERNAL_NED_MEASUREMENTS_TOPIC, self.external_ned_measurements_callback, 10)
+                self.create_subscription(
+            GeoPointStamped, self.EXTERNAL_MAP_ORIGIN_MEASUREMENTS_TOPIC, self.external_map_origin_measurements_callback, 10)
+        else: 
+            rclpy.logging.ERROR("USE_EXTERNAL_GPS_FIXED and USE_EXTERNAL_GPS_MEASUREMENTS must not have the same value!")
+        
+        if (self.USE_EXTERNAL_HEADING_FIXED ^ self.USE_EXTERNAL_HEADING_MEASUREMENTS):            
+            if self.USE_EXTERNAL_HEADING_MEASUREMENTS:
+                self.create_subscription(
+            Imu, self.EXTERNAL_IMU_MEASUREMENTS_TOPIC, self.external_imu_measurements_callback, 10)
+        else: 
+            rclpy.logging.ERROR("USE_EXTERNAL_HEADING_FIXED and USE_EXTERNAL_HEADING_ASV_MEASUREMENTS must not have the same value!")
         
     def initialize_publishers(self):
         print("Initializing ROS publishers")

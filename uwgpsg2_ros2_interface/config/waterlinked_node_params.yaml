@@ -1,5 +1,21 @@
 catamaran:
   waterlinked_localization_node:
     ros__parameters:
-      ros_rate: 10.0
-      waterlinked_url: 'http://demo.waterlinked.com'
+      ros_rate: 2.0 # as max defined 2-4Hz in http://store.waterlinked.com/wp-content/uploads/2020/09/W-MK-20010-1_Underwater_GPS_G2_Datasheet.pdf
+      waterlinked_url: 'http://demo.waterlinked.com' #'http://192.168.2.94' # #'http://10.0.108.6' #
+      
+      self.declare_parameter('use_external_gps_fixed: False
+      self.declare_parameter('external_gps_fixed_lat: 0.0
+      self.declare_parameter('external_gps_fixed_lon: 0.0        
+
+      self.declare_parameter('use_external_gps_asv_measurements: True
+      self.declare_parameter('external_gps_asv_measurements_topic: '/usv/gps'
+      self.declare_parameter('external_ned_asv_measurements_topic: '/usv/gps_ned'
+      self.declare_parameter('external_map_origin_asv_measurements_topic: '/usv/map_origin'
+
+      self.declare_parameter('use_external_heading_fixed: False
+      self.declare_parameter('external_heading_fixed_value: 0.0
+
+      self.declare_parameter('use_external_heading_asv_measurements: True
+      self.declare_parameter('external_imu_asv_measurements_topic: '/usv/imu/imu'
+
