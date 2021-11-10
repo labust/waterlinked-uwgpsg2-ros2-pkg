@@ -10,13 +10,9 @@ from rclpy.node import Node
 #from sensor_msgs.msg import Image
 #from sensor_msgs.msg import Joy
 #from geometry_msgs.msg import Twist
-from geometry_msgs.msg import Pose
-from geographic_msgs.msg import GeoPoint
-
+from geometry_msgs.msg import Vector3Stamped  
 from sensor_msgs.msg import NavSatFix
 from sensor_msgs.msg import Imu
-
-from geometry_msgs.msg import Vector3Stamped  
 from geographic_msgs.msg import GeoPointStamped
 
 import math
@@ -26,6 +22,9 @@ import inputs
 import requests
 import argparse
 import json
+import time
+import math
+
 
 #sys.path.append('~/waterlinked-uwgpsg2-ros2-pkg/uwgpsg2_ros2_interface/uwgpsg2_ros2_interface/examples')
 #from getposition import get_data, get_acoustic_position, get_global_position
@@ -143,8 +142,17 @@ class WaterLinedUWGPSG2Interface(Node):
             
     def publish_all_waterlinked_variables(self):        
         if hasattr(self, 'locator_wrt_base_relative_x'):
-            msg = Pose()
-            msg.position.x = float(self.locator_wrt_base_relative_x)
+            msg = Vector3Stamped()
+            time_ = time.time()
+            time_nanosec, time_sec  = math.modf(time_)
+            time_sec = int(time_sec)
+            time_nanosec = int(1e9*time_nanosec) 
+            msg.header.stamp.sec = time_sec
+            msg.header.stamp.nanosec = time_nanosec
+            msg.vector.x = float(self.locator_wrt_base_relative_x)
+            msg.vector.y = float(self.locator_wrt_base_relative_y)
+            msg.vector.z = float(self.locator_wrt_base_relative_z)
+            """msg.position.x = float(self.locator_wrt_base_relative_x)
             msg.position.y = float(self.locator_wrt_base_relative_y)
             # conversion of depth from [mm]to [m]
             msg.position.z = float(self.locator_wrt_base_relative_z)
@@ -157,63 +165,22 @@ class WaterLinedUWGPSG2Interface(Node):
             msg.orientation.x = float(x)
             msg.orientation.y = float(y)
             msg.orientation.z = float(z)
-            msg.orientation.w = float(w)
+            msg.orientation.w = float(w)"""
             self.pose_pub.publish(msg)
         
         if hasattr(self, 'locator_global_lat'):
-            msg = GeoPoint()
-            msg.latitude = float(self.locator_global_lat)
-            msg.longitude = float(self.locator_global_lon)
-            msg.altitude = 0.0; # or -self.locator_wrt_base_relative_z 
+            msg = GeoPointStamped()
+            time_ = time.time()
+            time_nanosec, time_sec  = math.modf(time_)
+            time_sec = int(time_sec)
+            time_nanosec = int(1e9*time_nanosec) #+2**32
+            msg.header.stamp.sec = time_sec
+            msg.header.stamp.nanosec = time_nanosec
+            msg.position.latitude = float(self.locator_global_lat)
+            msg.position.longitude = float(self.locator_global_lon)
+            msg.position.altitude = 0.0; # or -self.locator_wrt_base_relative_z 
             self.gps_pub.publish(msg)
     
-        """ if not self.IS_SIMULATION:
-            # Publishing depth and orientation into a Pose msg
-            msg = Pose()
-            msg.position.x = 0.0
-            msg.position.y = 0.0
-            # conversion of depth from [mm]to [m]
-            msg.position.z = float(self.drone.depth) / 1000.0
-            # Make sure the quaternion is valid and normalized
-            # conversion of roll, pith and yaw from [degrees]to [rad]
-            roll = math.radians(float(list(self.drone.pose.values())[0]))
-            pitch = math.radians(float(list(self.drone.pose.values())[1]))
-            yaw = math.radians(float(list(self.drone.pose.values())[2]))
-            x, y, z, w = self.euler_to_quaternion(roll, pitch, yaw)
-            msg.orientation.x = float(x)
-            msg.orientation.y = float(y)
-            msg.orientation.z = float(z)
-            msg.orientation.w = float(w)
-            self.pose_pub.publish(msg)
-
-            msg = Twist()
-            msg.linear.x = float(self.drone.motion.surge)
-            msg.linear.y = float(self.drone.motion.sway)
-            msg.linear.z = float(self.drone.motion.heave)
-            msg.angular.x = 0.0
-            msg.angular.y = 0.0
-            msg.angular.z = float(self.drone.motion.yaw)
-            self.thruster_force_norm_pub.publish(msg)            
-
-            msg = Bool()
-            msg.data = self.drone.connection_established
-            self.connected_status_pub.publish(msg)           
-
-            msg = Float32()
-            msg.data = float(self.drone.motion.slow)
-            self.slow_gain_pub.publish(msg)
-
-            msg = Int32()
-            msg.data = int(self.drone.config.water_density)
-            self.water_density_pub.publish(msg)
-            
-            msg = String()
-            msg.data = self.drone.software_version
-            self.software_version_pub.publish(msg)
-
-        else:
-            return
-            """
 
     def euler_to_quaternion(self, roll, pitch, yaw):  # yaw (Z), pitch (Y), roll (X)
         # Abbreviations for the various angular functions
@@ -243,8 +210,6 @@ class WaterLinedUWGPSG2Interface(Node):
     def external_imu_measurements_callback(self, msg):
         return 0
 
-
-
     def initialize_subscribers(self):
         print("Initializing ROS subscribers")
         if (self.USE_EXTERNAL_GPS_FIXED ^ self.USE_EXTERNAL_GPS_MEASUREMENTS):
@@ -267,8 +232,8 @@ class WaterLinedUWGPSG2Interface(Node):
         
     def initialize_publishers(self):
         print("Initializing ROS publishers")
-        self.pose_pub = self.create_publisher(Pose, "waterlinked_locator_position_relative", 10)
-        self.gps_pub = self.create_publisher(GeoPoint, "waterlinked_locator_position_global", 10)
+        self.pose_pub = self.create_publisher(Vector3Stamped, "waterlinked_locator_position_relative", 10)
+        self.gps_pub = self.create_publisher(GeoPointStamped, "waterlinked_locator_position_global", 10)
                 
     def __init__(self):
         print("Initializing WaterLinedUWGPSG2Interface class instance.")
