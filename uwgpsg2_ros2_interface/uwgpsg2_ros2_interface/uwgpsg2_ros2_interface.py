@@ -17,6 +17,7 @@ from geographic_msgs.msg import GeoPointStamped
 
 import math
 import sys
+import os
 import inputs
 
 import requests
@@ -24,6 +25,8 @@ import argparse
 import json
 import time
 import math
+import requests
+from requests.structures import CaseInsensitiveDict
 
 
 #sys.path.append('~/waterlinked-uwgpsg2-ros2-pkg/uwgpsg2_ros2_interface/uwgpsg2_ros2_interface/examples')
@@ -62,6 +65,7 @@ class WaterLinedUWGPSG2Interface(Node):
         # ROS params
         self.declare_parameter('ros_rate', 10.0)
         self.declare_parameter('waterlinked_url', '')
+        self.declare_parameter('waterlinked_api_external_master_path', '/api/v1/external/master')
         self.declare_parameter('use_external_gps_fixed', False)
         self.declare_parameter('external_gps_fixed_lat', 0.0)
         self.declare_parameter('external_gps_fixed_lon', 0.0)       
@@ -87,6 +91,8 @@ class WaterLinedUWGPSG2Interface(Node):
             'ros_rate').get_parameter_value().double_value  
         self.WATERLINKED_URL = self.get_parameter(
             'waterlinked_url').get_parameter_value().string_value          
+        self.WATERLINKED_API_EXTERNAL_MASTER_PATH = self.get_parameter(
+            'waterlinked_api_external_master_path').get_parameter_value().string_value          
         self.USE_EXTERNAL_GPS_FIXED = self.get_parameter(
             'use_external_gps_fixed').get_parameter_value().bool_value 
         self.EXTERNAL_GPS_FIXED_LAT = self.get_parameter(
@@ -197,22 +203,66 @@ class WaterLinedUWGPSG2Interface(Node):
         z = cr * cp * sy - sr * sp * cy
 
         return x, y, z, w
-        
-    def external_gps_measurements_callback(self, msg):
-        return 0
+
+    def quaternion2euler(self, x, y, z, w):
+        """
+        Convert a quaternion into euler angles (roll, pitch, yaw)
+        roll is rotation around x in radians (counterclockwise)
+        pitch is rotation around y in radians (counterclockwise)
+        yaw is rotation around z in radians (counterclockwise)
+        """
+        t0 = +2.0 * (w * x + y * z)
+        t1 = +1.0 - 2.0 * (x * x + y * y)
+        roll_x = math.atan2(t0, t1)
+     
+        t2 = +2.0 * (w * y - z * x)
+        t2 = +1.0 if t2 > +1.0 else t2
+        t2 = -1.0 if t2 < -1.0 else t2
+        pitch_y = math.asin(t2)
+     
+        t3 = +2.0 * (w * z + x * y)
+        t4 = +1.0 - 2.0 * (y * y + z * z)
+        yaw_z = math.atan2(t3, t4)
+     
+        return roll_x, pitch_y, yaw_z # in radians
     
+    def sendHttpPutRequestToTopsideAsExternalMaster(self):        
+        url = self.WATERLINKED_URL + self.WATERLINKED_API_EXTERNAL_MASTER_PATH 
+        headers = CaseInsensitiveDict()
+        headers["accept"] = "application/vnd.waterlinked.operation_response+json"
+        headers["Content-Type"] = "application/json"        
+        data = dict(lat=self.topside_external_lat, 
+                    lon=self.topside_external_lon, 
+                    orientation=self.topside_external_heading
+                    )
+        resp = requests.put(url, json=data)
+        #print(resp.status_code)
+        #print(resp.reason)
+
+    def external_gps_measurements_callback(self, msg):   
+        self.topside_external_lat = msg.position.latitude
+        self.topside_external_lon = msg.position.longitude
+        sendHttpPutRequestToTopsideAsExternalMaster()       
+
+    def external_imu_measurements_callback(self, msg):
+        x = msg.orientation.x
+        y = msg.orientation.y
+        z = msg.orientation.z
+        w = msg.orientation.w
+        roll, pitch, heading = quaternion2euler(x, y, z, w)
+        self.topside_external_heading = heading*180.0/math.pi
+        sendHttpPutRequestToTopsideAsExternalMaster()  
+
     def external_ned_measurements_callback(self, msg):
         return 0
     
     def external_map_origin_measurements_callback(self, msg):
-        return 0
-    
-    def external_imu_measurements_callback(self, msg):
-        return 0
+        return 0     
 
     def initialize_subscribers(self):
         print("Initializing ROS subscribers")
         if (self.USE_EXTERNAL_GPS_FIXED ^ self.USE_EXTERNAL_GPS_MEASUREMENTS):
+            print("starting external GPPS measurements subs")
             if self.USE_EXTERNAL_GPS_MEASUREMENTS:
                 self.create_subscription(
             NavSatFix, self.EXTERNAL_GPS_MEASUREMENTS_TOPIC, self.external_gps_measurements_callback, 10)
@@ -242,7 +292,25 @@ class WaterLinedUWGPSG2Interface(Node):
         self.get_ros_params()
         self.initialize_timer()
         self.initialize_subscribers()
-        self.initialize_publishers()       
+        self.initialize_publishers()    
+        
+        for iter in range(5):
+            self.topside_external_lat = iter*10
+            self.topside_external_lon = iter*10
+            self.topside_external_heading =  iter*360/5
+            url = self.WATERLINKED_URL + self.WATERLINKED_API_EXTERNAL_MASTER_PATH 
+            headers = CaseInsensitiveDict()
+            headers["accept"] = "application/vnd.waterlinked.operation_response+json"
+            headers["Content-Type"] = "application/json"
+            #data = '{ "cog": 42, "fix_quality": 1, "hdop": 1.9, "lat": 63.422, "lon": 10.424, "numsats": 11, "orientation": 42, "sog": 0.5}'
+            #data = '{ "lat": str(self.s), "lon": 10.424, "numsats": 11, "orientation": 42, "sog": 0.5}'
+            data = dict(lat=self.topside_external_lat, lon=self.topside_external_lon, orientation=self.topside_external_heading)
+            print(data)
+            resp = requests.put(url, json=data)
+            print(resp.status_code)
+            print(resp.reason)
+            time.sleep(2)
+        
 
 def main(args=None):
     print("Started")
