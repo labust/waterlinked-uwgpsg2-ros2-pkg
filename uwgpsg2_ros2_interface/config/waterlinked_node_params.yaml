@@ -3,20 +3,30 @@ catamaran:
     ros__parameters:
       ros_rate: 2.0 # as max defined 2-4Hz in http://store.waterlinked.com/wp-content/uploads/2020/09/W-MK-20010-1_Underwater_GPS_G2_Datasheet.pdf
       waterlinked_url: 'http://demo.waterlinked.com' #  'http://10.0.108.6' # 'http://192.168.2.94' # #
-      waterlinked_api_external_master_path: '/api/v1/external/master'
       
-      self.declare_parameter('use_external_gps_fixed: False
-      self.declare_parameter('external_gps_fixed_lat: 0.0
-      self.declare_parameter('external_gps_fixed_lon: 0.0        
+      # Params for purely ROS-based UW Locator global position projection as a function of 
+      # its relative position w.r.t. the topside and 
+      # external topside GPS/IMU measurements 
+      # If ROS is used for frame transform, "wl_api_use_external*" boolean params should all be False
+      use_ros_based_frame_transform: True   
 
-      self.declare_parameter('use_external_gps_asv_measurements: False
-      self.declare_parameter('external_gps_asv_measurements_topic: '/usv/gps'
-      self.declare_parameter('external_ned_asv_measurements_topic: '/usv/gps_ned'
-      self.declare_parameter('external_map_origin_asv_measurements_topic: '/usv/map_origin'
 
-      self.declare_parameter('use_external_heading_fixed: False
-      self.declare_parameter('external_heading_fixed_value: 0.0
+      # Params for using WaterLinked API to set external fixed/changing GPS and heading measurements
+      # If global position of the UW Locator corrections through API are used, 
+      # either *fixed and *measurements boolean vars can be True 
+      waterlinked_api_external_master_path: '/api/v1/external/master'
+      # API fixed params
+      wl_api_use_external_gps_fixed: False
+      wl_api_use_external_heading_fixed: False
+      external_gps_fixed_lat: 0.0 # degrees
+      external_gps_fixed_lon: 0.0 # degrees             
+      external_heading_fixed_value: 0.0 # degrees
+      # API external params
+      wl_api_use_external_gps_measurements: False
+      wl_api_use_external_heading_measurements: False
 
-      self.declare_parameter('use_external_heading_asv_measurements: True
-      self.declare_parameter('external_imu_asv_measurements_topic: '/usv/imu/imu'
-
+      # Topic names if (use_ros_based_frame_transform OR wl_api_use_external_*_measurements 
+      external_gps_measurements_topic: '/usv/gps'
+      external_ned_measurements_topic: '/usv/gps_ned'
+      external_map_origin_measurements_topic: '/usv/map_origin'    
+      external_imu_measurements_topic: '/usv/imu/imu'
