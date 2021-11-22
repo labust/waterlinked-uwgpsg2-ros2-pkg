@@ -26,7 +26,10 @@ catamaran:
       wl_api_use_external_heading_measurements: False
 
       # Topic names if (use_ros_based_frame_transform OR wl_api_use_external_*_measurements 
-      external_gps_measurements_topic: '/usv/gps'
-      external_ned_measurements_topic: '/usv/gps_ned'
-      external_map_origin_measurements_topic: '/usv/map_origin'    
-      external_imu_measurements_topic: '/usv/imu/imu'
+      #external_gps_measurements_topic: '/usv/gps'
+      #external_ned_measurements_topic: '/usv/gps_ned'
+      #external_map_origin_measurements_topic: '/usv/map_origin'    
+      #external_imu_measurements_topic: '/usv/imu/imu'
+
+      external_navigation_status_measurements_topic: '/usv/applanix_position'
+

@@ -14,6 +14,7 @@ from geometry_msgs.msg import Vector3Stamped
 from sensor_msgs.msg import NavSatFix
 from sensor_msgs.msg import Imu
 from geographic_msgs.msg import GeoPointStamped
+from auv_msgs.msg import NavigationStatus 
 
 import math
 import sys
@@ -71,7 +72,7 @@ class WaterLinedUWGPSG2Interface(Node):
         self.declare_parameter('ros_rate', 10.0)
         self.declare_parameter('waterlinked_url', '')
         self.declare_parameter('use_ros_based_frame_transform', True)
-        self.declare_parameter('waterlinked_api_external_master_path', '/api/v1/external/master')
+        self.declare_parameter('waterlinked_api_external_master_path', '')
         self.declare_parameter('wl_api_use_external_gps_fixed', False)
         self.declare_parameter('external_gps_fixed_lat', 0.0)
         self.declare_parameter('external_gps_fixed_lon', 0.0)       
@@ -83,6 +84,7 @@ class WaterLinedUWGPSG2Interface(Node):
         self.declare_parameter('external_heading_fixed_value', 0.0)
         self.declare_parameter('wl_api_use_external_heading_measurements', False)
         self.declare_parameter('external_imu_measurements_topic', '')
+        self.declare_parameter('external_navigation_status_measurements_topic', '')        
        
     def get_ros_params(self):
         # Setting ROS parameters
@@ -123,8 +125,10 @@ class WaterLinedUWGPSG2Interface(Node):
             'wl_api_use_external_heading_measurements').get_parameter_value().bool_value 
         self.EXTERNAL_IMU_MEASUREMENTS_TOPIC = self.get_parameter(
             'external_imu_measurements_topic').get_parameter_value().string_value     
+        self.EXTERNAL_NAVIGATION_STATUS_MEASUREMENTS_TOPIC = self.get_parameter(
+            'external_navigation_status_measurements_topic').get_parameter_value().string_value  
         
-        print(self.WATERLINKED_URL)
+        #print(self.WATERLINKED_URL)
         
     def set_ros_params(self):
         return
@@ -158,41 +162,39 @@ class WaterLinedUWGPSG2Interface(Node):
             self.locator_global_lon = pos["lon"]
     
     def transform_relative_to_ned_position(self):        
-        self.topside_external_roll_rad = 0.0  
-        self.topside_external_pitch_rad = 0.0  
-        self.topside_external_heading_rad = 0.0
-        self.topside_external_pos_north = 0.0
-        self.topside_external_pos_east = 0.0
-        self.topside_external_pos_down = 0.0
-
-        topside_pos_ned = np.array([self.topside_external_pos_north,
-                            self.topside_external_pos_east,
-                            self.topside_external_pos_down ])
-                
-        #quat = [x, y, z, w]
-        #R = rotation.from_quat(quat)
-        euler = np.array([self.topside_external_heading_rad, 
-            self.topside_external_pitch_rad, self.topside_external_roll_rad ]) 
-        R = rotation.from_euler('zyx', euler, degrees=False)
-        pos_relative = np.array([self.locator_wrt_base_relative_x, 
-                        self.locator_wrt_base_relative_y,
-                        self.locator_wrt_base_relative_z])
-        self.locator_pos_ned = R.apply(pos_relative) + topside_pos_ned
+        if (hasattr(self, 'topside_external_pos_north') and hasattr(self, 'topside_external_pos_east') and
+        hasattr(self, 'topside_external_pos_down') and hasattr(self, 'topside_external_heading_rad') and
+        hasattr(self, 'topside_external_pitch_rad') and hasattr(self, 'topside_external_roll_rad')  ):
+            topside_pos_ned = np.array([self.topside_external_pos_north,
+                                self.topside_external_pos_east,
+                                self.topside_external_pos_down ])
+                    
+            #quat = [x, y, z, w]
+            #R = rotation.from_quat(quat)
+            euler = np.array([self.topside_external_heading_rad, # CHECK ! 
+                self.topside_external_pitch_rad, self.topside_external_roll_rad ]) 
+            R = rotation.from_euler('zyx', euler, degrees=False)
+            pos_relative = np.array([self.locator_wrt_base_relative_x, 
+                            self.locator_wrt_base_relative_y,
+                            self.locator_wrt_base_relative_z])
+            self.locator_pos_ned = R.apply(pos_relative) + topside_pos_ned
+        else:
+            print(colored("Transformation to topside NED frame lacking arguments!", "red"))
            
-    def transform_ned_to_global_position(self):
-        self.topside_external_origin_lat = 0.0
-        self.topside_external_origin_lon = 0.0
-        self.topside_external_origin_h = 0.0
-        
-        n = self.locator_pos_ned[0]
-        e = self.locator_pos_ned[1]
-        d = self.locator_pos_ned[2]
-        lat0 = self.topside_external_origin_lat
-        lon0 = self.topside_external_origin_lon 
-        h0 = self.topside_external_origin_h 
-        lat, lon, h = pymap3d.ned2geodetic(n, e, d, lat0, lon0, h0, ell=None, deg=True)
-        self.locator_global_lat = lat
-        self.locator_global_lon = lon
+    def transform_ned_to_global_position(self):        
+        if (hasattr(self, 'locator_pos_ned') and hasattr(self, 'topside_external_origin_lat') and
+        hasattr(self, 'topside_external_origin_lon') and hasattr(self, 'topside_external_origin_h')):
+            n = self.locator_pos_ned[0]
+            e = self.locator_pos_ned[1]
+            d = self.locator_pos_ned[2]
+            lat0 = self.topside_external_origin_lat
+            lon0 = self.topside_external_origin_lon 
+            h0 = self.topside_external_origin_h 
+            lat, lon, h = pymap3d.ned2geodetic(n, e, d, lat0, lon0, h0, ell=None, deg=True)
+            self.locator_global_lat = lat
+            self.locator_global_lon = lon
+        else:
+            print(colored("Transformation from topside NED frame to WGS84 frame lacking arguments!", "red"))
 
     def publish_all_waterlinked_variables(self):        
         if hasattr(self, 'locator_wrt_base_relative_x'):
@@ -206,21 +208,7 @@ class WaterLinedUWGPSG2Interface(Node):
             msg.vector.x = float(self.locator_wrt_base_relative_x)
             msg.vector.y = float(self.locator_wrt_base_relative_y)
             msg.vector.z = float(self.locator_wrt_base_relative_z)
-            """msg.position.x = float(self.locator_wrt_base_relative_x)
-            msg.position.y = float(self.locator_wrt_base_relative_y)
-            # conversion of depth from [mm]to [m]
-            msg.position.z = float(self.locator_wrt_base_relative_z)
-            # Make sure the quaternion is valid and normalized
-            # conversion of roll, pith and yaw from [degrees]to [rad]
-            roll = 0.0
-            pitch = 0.0
-            yaw = 0.0
-            x, y, z, w = self.euler_to_quaternion(roll, pitch, yaw)
-            msg.orientation.x = float(x)
-            msg.orientation.y = float(y)
-            msg.orientation.z = float(z)
-            msg.orientation.w = float(w)"""
-            self.pose_pub.publish(msg)
+            self.pos_relative_wrt_topside.publish(msg)
         
         if hasattr(self, 'locator_global_lat'):
             msg = GeoPointStamped()
@@ -234,6 +222,19 @@ class WaterLinedUWGPSG2Interface(Node):
             msg.position.longitude = float(self.locator_global_lon)
             msg.position.altitude = 0.0; # or -self.locator_wrt_base_relative_z 
             self.gps_pub.publish(msg)
+        
+        if hasattr(self, 'locator_pos_ned'):
+            msg = Vector3Stamped()
+            time_ = time.time()
+            time_nanosec, time_sec  = math.modf(time_)
+            time_sec = int(time_sec)
+            time_nanosec = int(1e9*time_nanosec) 
+            msg.header.stamp.sec = time_sec
+            msg.header.stamp.nanosec = time_nanosec
+            msg.vector.x = self.locator_pos_ned[0]
+            msg.vector.y = self.locator_pos_ned[1]
+            msg.vector.z = self.locator_pos_ned[2]
+            self.ned_pub.publish(msg)
     
     def euler_to_quaternion(self, roll, pitch, yaw):  # yaw (Z), pitch (Y), roll (X)
         # Abbreviations for the various angular functions
@@ -278,8 +279,8 @@ class WaterLinedUWGPSG2Interface(Node):
         headers = CaseInsensitiveDict()
         headers["accept"] = "application/vnd.waterlinked.operation_response+json"
         headers["Content-Type"] = "application/json"        
-        data = dict(lat=self.topside_external_lat_deg, 
-                    lon=self.topside_external_lon_deg, 
+        data = dict(lat=self.topside_external_lat_deg_dec, 
+                    lon=self.topside_external_lon_deg_dec, 
                     orientation=self.topside_external_heading_deg
                     )
         resp = requests.put(url, json=data)
@@ -287,12 +288,18 @@ class WaterLinedUWGPSG2Interface(Node):
         #print(resp.reason)
 
     def external_gps_measurements_callback(self, msg):   
-        self.topside_external_lat_deg = msg.position.latitude
-        self.topside_external_lon_deg = msg.position.longitude
+        """
+        # Assuming NavSatFix GPS formatted msgs
+        self.topside_external_lat_deg_dec = msg.position.latitude
+        self.topside_external_lon_deg_dec = msg.position.longitude
         if (self.WL_API_USE_EXTERNAL_GPS_MEASUREMENTS and self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS):
-            sendHttpPutRequestToTopsideAsExternalMaster()       
+            sendHttpPutRequestToTopsideAsExternalMaster()      
+        """
+        return 0 
 
     def external_imu_measurements_callback(self, msg):
+        """
+        # Assuming Imu msg type for orientation
         x = msg.orientation.x
         y = msg.orientation.y
         z = msg.orientation.z
@@ -305,43 +312,74 @@ class WaterLinedUWGPSG2Interface(Node):
         self.topside_external_heading_deg = heading*180.0/math.pi #degrees
         if (self.WL_API_USE_EXTERNAL_GPS_MEASUREMENTS and self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS):
             sendHttpPutRequestToTopsideAsExternalMaster()  
+        """
+        return 0 
 
     def external_ned_measurements_callback(self, msg):
         """
+        # Assuming Vector3Stamped NED coordinates msgs
         self.topside_external_pos_north = 0.0
         self.topside_external_pos_east = 0.0
         self.topside_external_pos_down = 0.0 
-        """
-        
+        """        
         return 0
     
     def external_map_origin_measurements_callback(self, msg):
         """
+        # Assuming GeoPointStamped NED origin msgs
         self.topside_external_origin_lat = 0.0
         self.topside_external_origin_lon = 0.0
         self.topside_external_origin_h = 0.0 
         """
         return 0     
+    
+    def external_navigation_status_measurements_callback(self, msg):
+        # Assuming NavigationStatus msgs
+        # Parse local NED origin lat-lon coordinates
+        self.topside_external_origin_lat = msg.origin.latitude
+        self.topside_external_origin_lon = msg.origin.longitude
+        self.topside_external_origin_h = msg.origin.altitude
 
+        # Parse topside's lat-lon coordinates
+        self.topside_external_lat_deg_dec = msg.global_position.latitude
+        self.topside_external_lon_deg_dec = msg.global_position.longitude
+        
+        # Parse topside's NED frame coordinates
+        self.topside_external_pos_north = msg.position.north
+        self.topside_external_pos_east = msg.position.east
+        self.topside_external_pos_down = msg.position.depth
+
+        # Orientation and orientation rate are in radians and radians/sec using RPY
+        self.topside_external_roll_rad = msg.orientation.x  
+        self.topside_external_pitch_rad = msg.orientation.y    
+        self.topside_external_heading_rad = msg.orientation.z  
+
+        self.topside_external_heading_deg = self.topside_external_roll_rad*180.0/math.pi #degrees
+        if (self.WL_API_USE_EXTERNAL_GPS_MEASUREMENTS and self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS):
+            sendHttpPutRequestToTopsideAsExternalMaster()  
+        
     def initialize_subscribers(self):
         print("Initializing ROS subscribers")
-        if (self.USE_ROS_BASED_FRAME_TRANSFORM or self.WL_API_USE_EXTERNAL_GPS_MEASUREMENTS):
-            self.create_subscription(
+        if (self.USE_ROS_BASED_FRAME_TRANSFORM or
+        (self.WL_API_USE_EXTERNAL_GPS_MEASUREMENTS and self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS)):
+            """self.create_subscription(
                 NavSatFix, self.EXTERNAL_GPS_MEASUREMENTS_TOPIC, self.external_gps_measurements_callback, 10)
             self.create_subscription(
                 Vector3Stamped, self.EXTERNAL_NED_MEASUREMENTS_TOPIC, self.external_ned_measurements_callback, 10)
             self.create_subscription(
-                GeoPointStamped, self.EXTERNAL_MAP_ORIGIN_MEASUREMENTS_TOPIC, self.external_map_origin_measurements_callback, 10)
-                    
-        if (self.USE_ROS_BASED_FRAME_TRANSFORM or self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS):
+                GeoPointStamped, self.EXTERNAL_MAP_ORIGIN_MEASUREMENTS_TOPIC, self.external_map_origin_measurements_callback, 10)"""
             self.create_subscription(
-                Imu, self.EXTERNAL_IMU_MEASUREMENTS_TOPIC, self.external_imu_measurements_callback, 10)
-            
-        
+                NavigationStatus, self.EXTERNAL_NAVIGATION_STATUS_MEASUREMENTS_TOPIC, self.external_navigation_status_measurements_callback, 10)
+                    
+        #if (self.USE_ROS_BASED_FRAME_TRANSFORM or self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS):
+        #    self.create_subscription(
+        #        Imu, self.EXTERNAL_IMU_MEASUREMENTS_TOPIC, self.external_imu_measurements_callback, 10)
+                    
     def initialize_publishers(self):
         print("Initializing ROS publishers")
-        self.pose_pub = self.create_publisher(Vector3Stamped, "waterlinked_locator_position_relative", 10)
+        self.pos_relative_wrt_topside = self.create_publisher(Vector3Stamped, "waterlinked_locator_position_relative_wrt_topside", 10)
         self.gps_pub = self.create_publisher(GeoPointStamped, "waterlinked_locator_position_global", 10)
+        self.ned_pub = self.create_publisher(Vector3Stamped, "waterlinked_locator_position_topside_ned", 10)
 
     def initialize_properties(self):     
         # Check the validity of params
@@ -353,16 +391,21 @@ class WaterLinedUWGPSG2Interface(Node):
                 print(colored("WL_API_USE_EXTERNAL_HEADING_FIXED and USE_EXTERNAL_HEADING_ASV_MEASUREMENTS must not have the same value!", "red"))       
 
             if (self.WL_API_USE_EXTERNAL_GPS_FIXED and self.WL_API_USE_EXTERNAL_HEADING_FIXED):      
-                self.topside_external_lat_deg = self.EXTERNAL_GPS_FIXED_LAT_VALUE
-                self.topside_external_lon_deg = self.EXTERNAL_GPS_FIXED_LON_VALUE
+                self.topside_external_lat_deg_dec = self.EXTERNAL_GPS_FIXED_LAT_VALUE
+                self.topside_external_lon_deg_dec_dec = self.EXTERNAL_GPS_FIXED_LON_VALUE
                 self.topside_external_heading_deg = self.EXTERNAL_HEADING_FIXED_VALUE
                 sendHttpPutRequestToTopsideAsExternalMaster() 
             
         if (self.USE_ROS_BASED_FRAME_TRANSFORM and
             (self.WL_API_USE_EXTERNAL_GPS_FIXED or self.WL_API_USE_EXTERNAL_GPS_MEASUREMENTS or
              self.WL_API_USE_EXTERNAL_HEADING_FIXED or self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS) ) :
-            print(colored("When USE_ROS_BASED_FRAME_TRANSFORM is True then all other WL_API* booleans must be False!", "red"))     
-    
+            print(colored("When USE_ROS_BASED_FRAME_TRANSFORM is True then all other WL_API* booleans must be False!", "red"))    
+        
+        if (not (self.USE_ROS_BASED_FRAME_TRANSFORM or 
+        self.WL_API_USE_EXTERNAL_GPS_FIXED or self.WL_API_USE_EXTERNAL_GPS_MEASUREMENTS or
+        self.WL_API_USE_EXTERNAL_HEADING_FIXED or self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS )):
+            print(colored("Source of external IMU/GPS measurements must be used, either ROS or WL_API_FIXED/MEASUREMENTS!", "red"))   
+                
     def __init__(self):
         print("Initializing WaterLinedUWGPSG2Interface class instance.")
         super().__init__('uwgpsg2_interface')
@@ -372,28 +415,66 @@ class WaterLinedUWGPSG2Interface(Node):
         self.initialize_timer()
         self.initialize_subscribers()
         self.initialize_publishers()   
-        
-        if (self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS or
-            self.WL_API_USE_EXTERNAL_GPS_MEASUREMENTS):
-            print("Testing WaterLinked API external GPS+heading PUT requests")
-            for iter in range(5):
-                self.topside_external_lat_deg = iter*10
-                self.topside_external_lon_deg = iter*10
-                self.topside_external_heading_deg =  iter*360/5
-                url = self.WATERLINKED_URL + self.WATERLINKED_API_EXTERNAL_MASTER_PATH 
-                headers = CaseInsensitiveDict()
-                headers["accept"] = "application/vnd.waterlinked.operation_response+json"
-                headers["Content-Type"] = "application/json"
-                data = dict(lat=self.topside_external_lat_deg, lon=self.topside_external_lon_deg, orientation=self.topside_external_heading_deg)
-                print(data)
-                try:
-                    resp = requests.put(url, json=data, timeout=1.0/self.RATE)
-                    print(resp.status_code)
-                    print(resp.reason)
-                except requests.exceptions.RequestException as exc:
-                    print(colored("Exception occured {}".format(exc), "red"))
-                #time.sleep(2)
-        
+
+        debug = False        
+        if debug:
+            if (self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS or
+                self.WL_API_USE_EXTERNAL_GPS_MEASUREMENTS):
+                print("Testing WaterLinked API external GPS+heading PUT requests")
+                for iter in range(5):
+                    self.topside_external_lat_deg_dec = iter*10
+                    self.topside_external_lon_deg_dec_dec = iter*10
+                    self.topside_external_heading_deg =  iter*360/5
+                    url = self.WATERLINKED_URL + self.WATERLINKED_API_EXTERNAL_MASTER_PATH 
+                    headers = CaseInsensitiveDict()
+                    headers["accept"] = "application/vnd.waterlinked.operation_response+json"
+                    headers["Content-Type"] = "application/json"
+                    data = dict(lat=self.topside_external_lat_deg_dec, lon=self.topside_external_lon_deg_dec_dec, orientation=self.topside_external_heading_deg)
+                    print(data)
+                    try:
+                        resp = requests.put(url, json=data, timeout=1.0/self.RATE)
+                        print(resp.status_code)
+                        print(resp.reason)
+                    except requests.exceptions.RequestException as exc:
+                        print(colored("Exception occured {}".format(exc), "red"))
+                    #time.sleep(2)
+            
+            #Test frame transforms
+            n = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+            e = n
+            d = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            r = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            p = r
+            y = np.array([0.0, math.pi/4.0, math.pi/2.0, math.pi, math.pi*5/4.0, math.pi*3/2.0, 0.0, math.pi/4.0, math.pi/2.0, math.pi, math.pi*5/4.0, math.pi*3/2.0])
+            lat0 = np.array([43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0])
+            lon0 = lat0/43.0*16.0
+            x_rel = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+            y_rel = x_rel
+            z_rel = x_rel*5.0
+            for iter in range(len(n)):
+                self.topside_external_pos_north = n[iter]
+                self.topside_external_pos_east = e[iter]
+                self.topside_external_pos_down = d[iter] 
+
+                self.topside_external_roll_rad = r[iter] 
+                self.topside_external_pitch_rad = p[iter]
+                self.topside_external_heading_rad = y[iter]
+
+                self.topside_external_origin_lat = lat0[iter]
+                self.topside_external_origin_lon = lon0[iter]
+                self.topside_external_origin_h = 0.0 
+
+                self.locator_wrt_base_relative_x = x_rel[iter]
+                self.locator_wrt_base_relative_y = y_rel[iter]
+                self.locator_wrt_base_relative_z = z_rel[iter]
+
+                self.transform_relative_to_ned_position()        
+                self.transform_ned_to_global_position()
+                print(iter+1)
+                print(self.locator_pos_ned)
+                print(self.locator_global_lat)
+                print(self.locator_global_lon)
+            
 
 def main(args=None):
     print("Started")
