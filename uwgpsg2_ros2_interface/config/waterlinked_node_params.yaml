@@ -16,6 +16,7 @@ catamaran:
       #external_map_origin_measurements_topic: '/usv/map_origin' #geometry_msgs/msg/GeoPointStamped 
       #external_imu_measurements_topic: '/usv/imu/imu' # sensor_msgs/msg/Imu
       external_navigation_status_measurements_topic: '/usv/applanix_position'
+      ros_rate_topside: 10.0 #Hz
 
       # Params for external Locator relative position emulation
       use_ros_based_locator_relative_position: True #should be false if UWGPS is connected
