@@ -41,7 +41,7 @@ import numpy as np
 
 class WaterLinedUWGPSG2Interface(Node):
 
-# WaterLinked API methods
+    # WaterLinked API methods
     def get_data(self, url):  
         try:
             r = requests.get(url)
@@ -61,7 +61,7 @@ class WaterLinedUWGPSG2Interface(Node):
     def get_global_position(self, base_url):
         return self.get_data("{}/api/v1/position/global".format(base_url))
 
-# ROS-related methods
+    # ROS-related methods
     def declare_node_parameters(self):
         #self.declare_parameter('use_gamepad', False)
         #self.declare_parameter('camera_bitrate_min', 1000000)
@@ -84,7 +84,9 @@ class WaterLinedUWGPSG2Interface(Node):
         self.declare_parameter('external_heading_fixed_value', 0.0)
         self.declare_parameter('wl_api_use_external_heading_measurements', False)
         self.declare_parameter('external_imu_measurements_topic', '')
-        self.declare_parameter('external_navigation_status_measurements_topic', '')        
+        self.declare_parameter('external_navigation_status_measurements_topic', '') 
+        self.declare_parameter('use_ros_based_locator_relative_position', False)
+        self.declare_parameter('external_locator_relative_position_topic', '') 
        
     def get_ros_params(self):
         # Setting ROS parameters
@@ -126,7 +128,12 @@ class WaterLinedUWGPSG2Interface(Node):
         self.EXTERNAL_IMU_MEASUREMENTS_TOPIC = self.get_parameter(
             'external_imu_measurements_topic').get_parameter_value().string_value     
         self.EXTERNAL_NAVIGATION_STATUS_MEASUREMENTS_TOPIC = self.get_parameter(
-            'external_navigation_status_measurements_topic').get_parameter_value().string_value  
+            'external_navigation_status_measurements_topic').get_parameter_value().string_value          
+        self.USE_ROS_BASED_LOCATOR_RELATIVE_POSITION = self.get_parameter(
+            'use_ros_based_locator_relative_position').get_parameter_value().bool_value 
+        self.EXTERNAL_LOCATOR_RELATIVE_POSITION_TOPIC = self.get_parameter(
+            'external_locator_relative_position_topic').get_parameter_value().string_value 
+
         
         #print(self.WATERLINKED_URL)
         
@@ -143,28 +150,34 @@ class WaterLinedUWGPSG2Interface(Node):
         # self.get_ros_params() # Blueye params values should be changed
         # through topic publishing and not ROS2 node param change
         self.set_ros_params()
-        self.get_waterlinked_measuremets()
+        if not self.USE_ROS_BASED_LOCATOR_RELATIVE_POSITION:
+            self.get_waterlinked_measuremets_relative()
+        if not self.USE_ROS_BASED_FRAME_TRANSFORM:
+            self.get_waterlinked_measuremets_global()        
         if self.USE_ROS_BASED_FRAME_TRANSFORM:
                 self.transform_relative_to_ned_position()
                 self.transform_ned_to_global_position()
         self.publish_all_waterlinked_variables()
     
-    def get_waterlinked_measuremets(self):
+    def get_waterlinked_measuremets_relative(self):
         data = self.get_acoustic_position(self.WATERLINKED_URL)
         if data:
             self.locator_wrt_base_relative_x = data["x"]
             self.locator_wrt_base_relative_y = data["y"]
-            self.locator_wrt_base_relative_z = data["z"]
+            self.locator_wrt_base_relative_z = data["z"]        
 
+    def get_waterlinked_measuremets_global(self):
         pos = self.get_global_position(self.WATERLINKED_URL)
         if (pos and not self.USE_ROS_BASED_FRAME_TRANSFORM):
             self.locator_global_lat = pos["lat"]
             self.locator_global_lon = pos["lon"]
-    
+  
     def transform_relative_to_ned_position(self):        
         if (hasattr(self, 'topside_external_pos_north') and hasattr(self, 'topside_external_pos_east') and
         hasattr(self, 'topside_external_pos_down') and hasattr(self, 'topside_external_heading_rad') and
-        hasattr(self, 'topside_external_pitch_rad') and hasattr(self, 'topside_external_roll_rad')  ):
+        hasattr(self, 'topside_external_pitch_rad') and hasattr(self, 'topside_external_roll_rad') and
+        hasattr(self, 'locator_wrt_base_relative_x') and hasattr(self, 'locator_wrt_base_relative_y') and
+        hasattr(self, 'locator_wrt_base_relative_z')):
             topside_pos_ned = np.array([self.topside_external_pos_north,
                                 self.topside_external_pos_east,
                                 self.topside_external_pos_down ])
@@ -197,7 +210,7 @@ class WaterLinedUWGPSG2Interface(Node):
             print(colored("Transformation from topside NED frame to WGS84 frame lacking arguments!", "red"))
 
     def publish_all_waterlinked_variables(self):        
-        if hasattr(self, 'locator_wrt_base_relative_x'):
+        if hasattr(self, 'locator_wrt_base_relative_x') and not self.USE_ROS_BASED_LOCATOR_RELATIVE_POSITION:
             msg = Vector3Stamped()
             time_ = time.time()
             time_nanosec, time_sec  = math.modf(time_)
@@ -358,6 +371,11 @@ class WaterLinedUWGPSG2Interface(Node):
         if (self.WL_API_USE_EXTERNAL_GPS_MEASUREMENTS and self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS):
             sendHttpPutRequestToTopsideAsExternalMaster()  
         
+    def external_locator_relative_position_callback(self, msg):
+        self.locator_wrt_base_relative_x = msg.vector.x
+        self.locator_wrt_base_relative_y = msg.vector.y
+        self.locator_wrt_base_relative_z = msg.vector.z
+
     def initialize_subscribers(self):
         print("Initializing ROS subscribers")
         if (self.USE_ROS_BASED_FRAME_TRANSFORM or
@@ -374,10 +392,15 @@ class WaterLinedUWGPSG2Interface(Node):
         #if (self.USE_ROS_BASED_FRAME_TRANSFORM or self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS):
         #    self.create_subscription(
         #        Imu, self.EXTERNAL_IMU_MEASUREMENTS_TOPIC, self.external_imu_measurements_callback, 10)
+
+        if (self.USE_ROS_BASED_LOCATOR_RELATIVE_POSITION):
+            self.create_subscription(
+                Vector3Stamped, self.EXTERNAL_LOCATOR_RELATIVE_POSITION_TOPIC, self.external_locator_relative_position_callback, 10)
                     
     def initialize_publishers(self):
         print("Initializing ROS publishers")
-        self.pos_relative_wrt_topside = self.create_publisher(Vector3Stamped, "waterlinked_locator_position_relative_wrt_topside", 10)
+        if not self.USE_ROS_BASED_LOCATOR_RELATIVE_POSITION:
+            self.pos_relative_wrt_topside = self.create_publisher(Vector3Stamped, "waterlinked_locator_position_relative_wrt_topside", 10)
         self.gps_pub = self.create_publisher(GeoPointStamped, "waterlinked_locator_position_global", 10)
         self.ned_pub = self.create_publisher(Vector3Stamped, "waterlinked_locator_position_topside_ned", 10)
 
