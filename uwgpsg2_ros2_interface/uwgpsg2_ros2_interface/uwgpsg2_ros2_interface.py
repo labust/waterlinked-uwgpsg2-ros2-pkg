@@ -220,7 +220,7 @@ class WaterLinedUWGPSG2Interface(Node):
             msg.header.stamp.nanosec = time_nanosec
             msg.position.latitude = float(self.locator_global_lat)
             msg.position.longitude = float(self.locator_global_lon)
-            msg.position.altitude = 0.0; # or -self.locator_wrt_base_relative_z 
+            msg.position.altitude = -float(self.locator_wrt_base_relative_z)  # or -self.locator_wrt_base_relative_z 
             self.gps_pub.publish(msg)
         
         if hasattr(self, 'locator_pos_ned'):
@@ -440,7 +440,7 @@ class WaterLinedUWGPSG2Interface(Node):
                     #time.sleep(2)
             
             #Test frame transforms
-            n = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+            n = 10000.0*np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
             e = n
             d = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
             r = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
