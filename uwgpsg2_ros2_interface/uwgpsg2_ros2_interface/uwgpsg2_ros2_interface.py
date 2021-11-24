@@ -270,13 +270,15 @@ class WaterLinedUWGPSG2Interface(Node):
         if hasattr(self, 'topside_pos_time_new') and hasattr(self, 'locator_rel_pos_time_new'):
             delta_time_topside = self.time_pub - self.topside_pos_time_new
             delta_time_locator = self.time_pub - self.locator_rel_pos_time_new
-            if (delta_time_topside<1.0/self.RATE_TOPSIDE and delta_time_locator < 1.0/self.RATE):
+            print(delta_time_topside)
+            print(delta_time_locator)
+            if (delta_time_topside<=3/self.RATE_TOPSIDE and delta_time_locator <= 3/self.RATE):
                 self.pub_locator_wrt_base_relative_pos()
                 self.pub_locator_pos_ned()
                 self.pub_locator_global_pos()
-            if delta_time_topside>1.0/self.RATE_TOPSIDE:
+            if delta_time_topside>3/self.RATE_TOPSIDE:
                 print(colored("Topside NED/GPS data timedout!", "red"))
-            if delta_time_locator>1.0/self.RATE:
+            if delta_time_locator>3/self.RATE:
                 print(colored("Locator data timedout!", "red"))
 
     def euler_to_quaternion(self, roll, pitch, yaw):  # yaw (Z), pitch (Y), roll (X)
