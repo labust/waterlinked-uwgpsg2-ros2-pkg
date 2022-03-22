@@ -39,7 +39,7 @@ import numpy as np
 #from getposition import get_data, get_acoustic_position, get_global_position
 #from . import get_data, get_acoustic_position, get_global_position
 
-class WaterLinedUWGPSG2Interface(Node):
+class WaterLinkedUWGPSG2Interface(Node):
 
     # WaterLinked API methods
     def get_data(self, url):
@@ -267,17 +267,19 @@ class WaterLinedUWGPSG2Interface(Node):
         time_ = time.time()
         time_nanosec, time_sec = math.modf(time_)
         self.time_pub = time_sec + time_nanosec
-        if hasattr(self, 'topside_pos_time_new') and hasattr(self, 'locator_rel_pos_time_new'):
-            delta_time_topside = self.time_pub - self.topside_pos_time_new
+        #if hasattr(self, 'topside_pos_time_new') and hasattr(self, 'locator_rel_pos_time_new'):
+        if hasattr(self, 'locator_rel_pos_time_new'):
+            #delta_time_topside = self.time_pub - self.topside_pos_time_new
             delta_time_locator = self.time_pub - self.locator_rel_pos_time_new
-            print(delta_time_topside)
-            print(delta_time_locator)
-            if (delta_time_topside<=3/self.RATE_TOPSIDE and delta_time_locator <= 3/self.RATE):
+            #print(delta_time_topside)
+            #if (delta_time_topside<=3/self.RATE_TOPSIDE and delta_time_locator <= 3/self.RATE):
+            #if (delta_time_topside<=3/self.RATE_TOPSIDE and delta_time_locator <= 3/self.RATE):    
+            if (delta_time_locator <= 3/self.RATE):     
                 self.pub_locator_wrt_base_relative_pos()
                 self.pub_locator_pos_ned()
                 self.pub_locator_global_pos()
-            if delta_time_topside>3/self.RATE_TOPSIDE:
-                print(colored("Topside NED/GPS data timedout!", "red"))
+            #if delta_time_topside>3/self.RATE_TOPSIDE:
+            #    print(colored("Topside NED/GPS data timedout!", "red"))
             if delta_time_locator>3/self.RATE:
                 print(colored("Locator data timedout!", "red"))
 
@@ -544,7 +546,7 @@ class WaterLinedUWGPSG2Interface(Node):
                 "Source of external IMU/GPS measurements must be used, either ROS or WL_API_FIXED/MEASUREMENTS!", "red"))
 
     def __init__(self):
-        print("Initializing WaterLinedUWGPSG2Interface class instance.")
+        print("Initializing WaterLinkedUWGPSG2Interface class instance.")
         super().__init__('uwgpsg2_interface')
         self.declare_node_parameters()
         self.get_ros_params()
@@ -562,7 +564,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     try:
-        interface = WaterLinedUWGPSG2Interface()
+        interface = WaterLinkedUWGPSG2Interface()
         rclpy.spin(interface)
         # interface.run()
     except:
