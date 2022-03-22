@@ -18,12 +18,12 @@ from auv_msgs.msg import NavigationStatus
 
 import math
 import sys
-import os
-import inputs
+#import os
+#import inputs
 
 import requests
-import argparse
-import json
+#import argparse
+#import json
 import time
 import math
 import requests
