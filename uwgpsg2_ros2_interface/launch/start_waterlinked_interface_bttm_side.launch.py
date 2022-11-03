@@ -30,7 +30,7 @@ def generate_launch_description():
     #              ('camera_info', 'camera_calibration_params_topside_stream')]
     
     waterlinked_localization_node = Node (
-            namespace='catamaran',
+            namespace='korkyra/uwgps',
             name='waterlinked_localization_node',
             package='uwgpsg2_ros2_interface',
             executable='uwgpsg2_ros2_interface',
@@ -38,8 +38,10 @@ def generate_launch_description():
             emulate_tty=True,
             parameters= [waterlinked_node_params],
             #remappings=gstreamer_remappings,
-            arguments=[]
-    
+            remappings = [('fix', 'fix'),
+                            ('navrelposned', 'navrelposned'),
+                            ('locator_position_relative_wrt_topside', 'locator_position_relative_wrt_topside')],
+            arguments=[]    
         )
        
     ###################################################################

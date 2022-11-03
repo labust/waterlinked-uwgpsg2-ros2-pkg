@@ -80,20 +80,19 @@ class WaterLinkedUWGPSG2Interface(Node):
         self.declare_parameter('external_gps_fixed_lat', 0.0)
         self.declare_parameter('external_gps_fixed_lon', 0.0)
         self.declare_parameter('wl_api_use_external_gps_measurements', False)
-        self.declare_parameter('external_gps_measurements_topic', '')
-        self.declare_parameter('external_heading_measurements_topic', '')
-        self.declare_parameter('external_ned_measurements_topic', '')
-        self.declare_parameter('external_map_origin_measurements_topic', '')
+        # self.declare_parameter('external_gps_measurements_topic', '')
+        # self.declare_parameter('external_heading_measurements_topic', '')
+        # self.declare_parameter('external_ned_measurements_topic', '')
+        # self.declare_parameter('external_map_origin_measurements_topic', '')
         self.declare_parameter('wl_api_use_external_heading_fixed', False)
         self.declare_parameter('external_heading_fixed_value', 0.0)
         self.declare_parameter(
             'wl_api_use_external_heading_measurements', False)
-        self.declare_parameter('external_imu_measurements_topic', '')
-        self.declare_parameter(
-            'external_navigation_status_measurements_topic', '')
+        # self.declare_parameter('external_imu_measurements_topic', '')
+        # self.declare_parameter( 'external_navigation_status_measurements_topic', '')
         self.declare_parameter(
             'use_ros_based_locator_relative_position', False)
-        self.declare_parameter('external_locator_relative_position_topic', '')
+        # self.declare_parameter('external_locator_relative_position_topic', '')
 
     def get_ros_params(self):
         # Setting ROS parameters
@@ -122,28 +121,28 @@ class WaterLinkedUWGPSG2Interface(Node):
             'external_gps_fixed_lon').get_parameter_value().double_value
         self.WL_API_USE_EXTERNAL_GPS_MEASUREMENTS = self.get_parameter(
             'wl_api_use_external_gps_measurements').get_parameter_value().bool_value
-        self.EXTERNAL_GPS_MEASUREMENTS_TOPIC = self.get_parameter(
-            'external_gps_measurements_topic').get_parameter_value().string_value
-        self.EXTERNAL_HEADING_MEASUREMENTS_TOPIC = self.get_parameter(
-            'external_heading_measurements_topic').get_parameter_value().string_value    
-        self.EXTERNAL_NED_MEASUREMENTS_TOPIC = self.get_parameter(
-            'external_ned_measurements_topic').get_parameter_value().string_value
-        self.EXTERNAL_MAP_ORIGIN_MEASUREMENTS_TOPIC = self.get_parameter(
-            'external_map_origin_measurements_topic').get_parameter_value().string_value
+        # self.EXTERNAL_GPS_MEASUREMENTS_TOPIC = self.get_parameter(
+        #     'external_gps_measurements_topic').get_parameter_value().string_value
+        # self.EXTERNAL_HEADING_MEASUREMENTS_TOPIC = self.get_parameter(
+        #     'external_heading_measurements_topic').get_parameter_value().string_value    
+        # self.EXTERNAL_NED_MEASUREMENTS_TOPIC = self.get_parameter(
+        #     'external_ned_measurements_topic').get_parameter_value().string_value
+        # self.EXTERNAL_MAP_ORIGIN_MEASUREMENTS_TOPIC = self.get_parameter(
+        #     'external_map_origin_measurements_topic').get_parameter_value().string_value
         self.WL_API_USE_EXTERNAL_HEADING_FIXED = self.get_parameter(
             'wl_api_use_external_heading_fixed').get_parameter_value().bool_value
         self.EXTERNAL_HEADING_FIXED_VALUE = self.get_parameter(
             'external_heading_fixed_value').get_parameter_value().double_value
         self.WL_API_USE_EXTERNAL_HEADING_MEASUREMENTS = self.get_parameter(
             'wl_api_use_external_heading_measurements').get_parameter_value().bool_value
-        self.EXTERNAL_IMU_MEASUREMENTS_TOPIC = self.get_parameter(
-            'external_imu_measurements_topic').get_parameter_value().string_value
-        self.EXTERNAL_NAVIGATION_STATUS_MEASUREMENTS_TOPIC = self.get_parameter(
-            'external_navigation_status_measurements_topic').get_parameter_value().string_value
+        # self.EXTERNAL_IMU_MEASUREMENTS_TOPIC = self.get_parameter(
+        #     'external_imu_measurements_topic').get_parameter_value().string_value
+        # self.EXTERNAL_NAVIGATION_STATUS_MEASUREMENTS_TOPIC = self.get_parameter(
+        #     'external_navigation_status_measurements_topic').get_parameter_value().string_value
         self.USE_ROS_BASED_LOCATOR_RELATIVE_POSITION = self.get_parameter(
             'use_ros_based_locator_relative_position').get_parameter_value().bool_value
-        self.EXTERNAL_LOCATOR_RELATIVE_POSITION_TOPIC = self.get_parameter(
-            'external_locator_relative_position_topic').get_parameter_value().string_value
+        # self.EXTERNAL_LOCATOR_RELATIVE_POSITION_TOPIC = self.get_parameter(
+        #     'external_locator_relative_position_topic').get_parameter_value().string_value
 
         # print(self.WATERLINKED_URL)
 
@@ -439,9 +438,9 @@ class WaterLinkedUWGPSG2Interface(Node):
                 GeoPointStamped, self.EXTERNAL_MAP_ORIGIN_MEASUREMENTS_TOPIC, self.external_map_origin_measurements_callback, 10)"""
             # Subscribers to external ublox GPS and heading measurements
             self.create_subscription(
-                NavSatFix, self.EXTERNAL_GPS_MEASUREMENTS_TOPIC, self.external_gps_measurements_callback, 10)
+                NavSatFix, 'fix', self.external_gps_measurements_callback, 10)
             self.create_subscription(
-                NavRELPOSNED9, self.EXTERNAL_HEADING_MEASUREMENTS_TOPIC, self.external_heading_measurements_callback, 10)
+                NavRELPOSNED9, 'navrelposned', self.external_heading_measurements_callback, 10)
 
             #self.create_subscription(
             #    NavigationStatus, self.EXTERNAL_NAVIGATION_STATUS_MEASUREMENTS_TOPIC, self.external_navigation_status_measurements_callback, 10)
@@ -452,17 +451,17 @@ class WaterLinkedUWGPSG2Interface(Node):
 
         if (self.USE_ROS_BASED_LOCATOR_RELATIVE_POSITION):
             self.create_subscription(
-                Vector3Stamped, self.EXTERNAL_LOCATOR_RELATIVE_POSITION_TOPIC, self.external_locator_relative_position_callback, 10)
+                Vector3Stamped, 'locator_position_relative_wrt_topside', self.external_locator_relative_position_callback, 10)
 
     def initialize_publishers(self):
         print("Initializing ROS publishers")
         if not self.USE_ROS_BASED_LOCATOR_RELATIVE_POSITION:
             self.pos_relative_wrt_topside = self.create_publisher(
-                Vector3Stamped, "waterlinked_locator_position_relative_wrt_topside", 10)
+                Vector3Stamped, "locator_position_relative_wrt_topside", 10)
         self.gps_pub = self.create_publisher(
-            GeoPointStamped, "waterlinked_locator_position_global", 10)
+            GeoPointStamped, "locator_position_global", 10)
         self.ned_pub = self.create_publisher(
-            Vector3Stamped, "waterlinked_locator_position_topside_ned", 10)
+            Vector3Stamped, "locator_position_topside_ned", 10)
 
         """self.fake_gps_pub = self.create_publisher(NavSatFix, "/fix", 10)
         self.fake_heading_pub = self.create_publisher(NavRELPOSNED9, "/navrelposned", 10)"""
