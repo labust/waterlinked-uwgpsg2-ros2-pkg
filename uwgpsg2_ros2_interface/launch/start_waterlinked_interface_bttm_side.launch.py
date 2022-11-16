@@ -38,9 +38,12 @@ def generate_launch_description():
             emulate_tty=True,
             parameters= [waterlinked_node_params],
             #remappings=gstreamer_remappings,
-            remappings = [('fix', 'fix'),
+            remappings =[   ('fix', 'fix'), # ? this maybe needs to be changed to /korkyra/fix ?
                             ('navrelposned', 'navrelposned'),
-                            ('locator_position_relative_wrt_topside', 'locator_position_relative_wrt_topside')],
+                            ('locator_position_relative_wrt_topside', 'locator_position_relative_wrt_topside'),
+                            ('locator_position_global', 'locator_position_global'),
+                            ('locator_position_topside_ned', 'locator_position_topside_ned')
+                        ],
             arguments=[]    
         )
        
